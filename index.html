@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Verdict Predictor</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 40px; background-color: #f7f9fc; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { color: #1a237e; }
+        textarea { width: 95%; height: 150px; padding: 15px; border-radius: 4px; border: 1px solid #ccc; font-size: 16px; margin-bottom: 20px; }
+        button { background-color: #3f51b5; color: white; padding: 15px 30px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #303f9f; }
+        #result, #explanation { margin-top: 30px; padding: 20px; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #fafafa; }
+        /* Style for the explanation iframe */
+        #explanation_iframe { 
+            width: 100%; 
+            height: 250px; 
+            border: none; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Legal Verdict Predictor ⚖️</h1>
+        <p>Enter a legal case summary below to get a predicted verdict ("Accepted" or "Rejected") from a Legal-BERT model.</p>
+        <textarea id="caseSummary" placeholder="e.g., The plaintiff presented overwhelming evidence of a contract breach, whereas the defendant's counter-claims were unsubstantiated and lacked merit."></textarea>
+        <button onclick="getPrediction()">Predict Verdict</button>
+        <div id="result">
+            <p><strong>Prediction will appear here...</strong></p>
+        </div>
+        <div id="explanation" style="display:none;"> <h3>Why this prediction?</h3>
+            <p>This shows the top words that influenced the model's decision. Green words pushed the prediction towards the result.</p>
+            <iframe id="explanation_iframe"></iframe>
+        </div>
+    </div>
+
+    <script>
+        async function getPrediction() {
+            const summary = document.getElementById('caseSummary').value;
+            const resultDiv = document.getElementById('result');
+            const explanationDiv = document.getElementById('explanation');
+            // Get the iframe element
+            const explanationIframe = document.getElementById('explanation_iframe');
+
+            resultDiv.innerHTML = '<p><strong>Loading...</strong></p>';
+            explanationDiv.style.display = 'none'; // Hide old explanation
+
+            if (!summary) {
+                resultDiv.innerHTML = '<p style="color: red;"><strong>Please enter a case summary.</strong></p>';
+                return;
+            }
+
+            try {
+                const response = await fetch('/predict/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ case_summary: summary })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                let verdictColor = data.predicted_verdict === 'Accepted' ? 'green' : 'red';
+                
+                resultDiv.innerHTML = `
+                    <h3>Prediction Result:</h3>
+                    <p><strong>Verdict:</strong> <span style="color:${verdictColor}; font-weight:bold;">${data.predicted_verdict}</span></p>
+                    <p><strong>Confidence:</strong> ${data.confidence}</p>
+                    <hr>
+                    <p><em>Accepted Score: ${data.details.accepted_confidence}</em></p>
+                    <p><em>Rejected Score: ${data.details.rejected_confidence}</em></p>
+                `;
+
+                if (data.explanation_html) {
+                    // Set the iframe's content directly
+                    explanationIframe.srcdoc = data.explanation_html;
+                    explanationDiv.style.display = 'block'; // Show explanation div
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;"><strong>An error occurred: ${error.message}</strong></p>`;
+            }
+        }
+    </script>
+</body>
+</html>
